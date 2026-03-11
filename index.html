@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CleanQuest - House Cleaning Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    
+    <style>
+        /* ... existing styles ... */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-primary: #FFF5EB;
+            --bg-secondary: #FFE6CC;
+            --accent-orange: #ff9933;
+            --accent-blue: #3399ff;
+            --accent-dirty: #FF6B6B;
+            --text-dark: #2D3748;
+            --text-light: #718096;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+            --radius: 20px;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #FFF5EB 0%, #FFE6CC 100%);
+            min-height: 100vh;
+            color: var(--text-dark);
+            padding-bottom: 80px;
+            overflow-x: hidden;
+        }
+
+        .dust-particle {
+            position: fixed;
+            pointer-events: none;
+            opacity: 0.3;
+            z-index: 1;
+        }
+
+        header {
+            background: white;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            animation: slideDown 0.5s ease;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+
+        .header-content {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h1 {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-blue) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-secondary);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .user-badge:hover {
+            background: var(--accent-blue);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .dust-counter {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-secondary);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 600;
+            font-size: 18px;
+            color: var(--accent-orange);
+            animation: bounce 0.5s ease;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dust-counter:hover {
+            background: var(--accent-orange);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .main-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .controls-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .collapse-all-btn {
+            flex: 1;
+            padding: 12px;
+            background: white;
+            border: 2px solid var(--accent-blue);
+            color: var(--accent-blue);
+            border-radius: 12px;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .collapse-all-btn:active {
+            transform: scale(0.98);
+        }
+
+        .room-section {
+            background: white;
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            animation: fadeIn 0.5s ease forwards;
+            opacity: 0;
+            cursor: move;
+            transition: transform 0.2s ease;
+        }
+
+        .room-section.dragging {
+            opacity: 0.5;
+            transform: scale(0.98);
+        }
+
+        .room-section.drag-over {
+            border-top: 3px solid var(--accent-blue);
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .room-section:nth-child(1) { animation-delay: 0.1s; }
+        .room-section:nth-child(2) { animation-delay: 0.2s; }
+        .room-section:nth-child(3) { animation-delay: 0.3s; }
+        .room-section:nth-child(4) { animation-delay: 0.4s; }
+        .room-section:nth-child(5) { animation-delay: 0.5s; }
+        .room-section:nth-child(6) { animation-delay: 0.6s; }
+
+        .room-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .room-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .room-icon {
+            font-size: 28px;
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.1));
+        }
+
+        .room-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .room-delete-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: all 0.2s ease;
+            padding: 4px;
+        }
+
+        .room-delete-btn:active {
+            transform: scale(0.9);
+            opacity: 1;
+        }
+
+        .room-toggle {
+            font-size: 24px;
+            transition: transform 0.3s ease;
+        }
+
+        .room-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 2000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+        }
+
+        .task-list.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+
+        .task-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 16px;
+            background: var(--bg-primary);
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .task-item:active {
+            transform: scale(0.98);
+        }
+
+        .task-item.highlighted {
+            box-shadow: 0 0 0 3px var(--accent-blue);
+            animation: pulse 1s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 3px var(--accent-blue); }
+            50% { box-shadow: 0 0 0 6px rgba(51, 153, 255, 0.5); }
+        }
+
+        .task-item.overdue {
+            background: linear-gradient(135deg, #FFE8E8 0%, #FFCCCC 100%);
+        }
+
+        .task-item.soon {
+            background: linear-gradient(135deg, #FFF9E6 0%, #FFE8B3 100%);
+        }
+
+        .task-item.fresh {
+            background: linear-gradient(135deg, #E6F7FF 0%, #B3E0FF 100%);
+        }
+
+        .task-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .task-checkbox {
+            width: 28px;
+            height: 28px;
+            border: 3px solid var(--accent-blue);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .task-checkbox.checked {
+            background: var(--accent-blue);
+        }
+
+        .task-checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .task-info {
+            flex: 1;
+            min-width: 0;
+            cursor: pointer;
+        }
+
+        .task-name {
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+
+        .task-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--text-light);
+            flex-wrap: wrap;
+        }
+
+        .task-frequency {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .task-status {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 500;
+        }
+
+        .task-completed-by {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: var(--accent-blue);
+            font-weight: 500;
+        }
+
+        .status-overdue { color: var(--accent-dirty); }
+        .status-soon { color: var(--accent-orange); }
+        .status-fresh { color: var(--accent-blue); }
+
+        .task-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .task-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0.6;
+            transition: all 0.2s ease;
+        }
+
+        .task-btn:active {
+            transform: scale(0.9);
+            opacity: 1;
+        }
+
+        .task-progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .task-progress-fill {
+            height: 100%;
+            transition: all 0.5s ease;
+            border-radius: 3px;
+        }
+
+        .task-progress-fill.fresh {
+            background: linear-gradient(90deg, var(--accent-blue) 0%, #66B3FF 100%);
+        }
+
+        .task-progress-fill.soon {
+            background: linear-gradient(90deg, var(--accent-orange) 0%, #FFB366 100%);
+        }
+
+        .task-progress-fill.overdue {
+            background: linear-gradient(90deg, var(--accent-dirty) 0%, #FF9999 100%);
+        }
+
+        .add-task-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #0077DD 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+            box-shadow: 0 4px 12px rgba(51, 153, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .add-task-btn.hidden {
+            display: none;
+        }
+
+        .add-task-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 6px rgba(51, 153, 255, 0.3);
+        }
+
+        .add-room-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--accent-orange) 0%, #FF7700 100%);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            font-family: 'Fredoka', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(255, 153, 51, 0.3);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .add-room-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 6px rgba(255, 153, 51, 0.3);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: flex-end;
+            z-index: 1000;
+            animation: fadeInOverlay 0.3s ease;
+        }
+
+        @keyframes fadeInOverlay {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            border-radius: var(--radius) var(--radius) 0 0;
+            padding: 24px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s ease;
+        }
+
+        .close-btn:active {
+            opacity: 1;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid var(--bg-secondary);
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: 'DM Sans', sans-serif;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .custom-frequency {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .custom-frequency.active {
+            display: block;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #0077DD 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(51, 153, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-dark);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--accent-dirty) 0%, #DD4444 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(2px);
+        }
+
+        .celebration {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 100px;
+            pointer-events: none;
+            animation: celebrate 1s ease forwards;
+            z-index: 2000;
+        }
+
+        @keyframes celebrate {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2) rotate(180deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0) rotate(360deg); opacity: 0; }
+        }
+
+        .stats-bar {
+            background: white;
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        .stat-item {
+            text-align: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-item:active {
+            transform: scale(0.95);
+        }
+
+        .stat-item.active {
+            background: var(--bg-primary);
+        }
+
+        .stat-value {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .competition-modal .modal {
+            max-height: 70vh;
+        }
+
+        .competition-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .competition-header {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            border-radius: 15px;
+        }
+
+        .competition-title {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-blue) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .competition-subtitle {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        .progress-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .progress-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .progress-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+        }
+
+        .progress-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+        }
+
+        .progress-value {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 20px;
+        }
+
+        .progress-bar-large {
+            width: 100%;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill-large {
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            font-weight: 600;
+            color: white;
+            font-size: 14px;
+        }
+
+        .progress-fill-large.team {
+            background: linear-gradient(90deg, var(--accent-blue) 0%, #0077DD 100%);
+        }
+
+        .progress-fill-large.monster {
+            background: linear-gradient(90deg, var(--accent-dirty) 0%, #DD4444 100%);
+        }
+
+        .user-scores {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .user-score-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .user-score-name {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .user-score-points {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 18px;
+            color: var(--accent-blue);
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 12px;
+            background: var(--bg-primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .history-date {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .history-user {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        .history-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .history-action-btn {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .history-action-btn.edit {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .history-action-btn.delete {
+            background: var(--accent-dirty);
+            color: white;
+        }
+
+        .history-action-btn:active {
+            transform: scale(0.95);
+        }
+
+        .empty-history {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-light);
+            font-style: italic;
+        }
+
+        .emoji-picker {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            background: var(--bg-primary);
+            border-radius: 12px;
+        }
+
+        .emoji-option {
+            font-size: 28px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .emoji-option:hover {
+            background: white;
+            transform: scale(1.1);
+        }
+
+        .emoji-option.selected {
+            background: var(--accent-blue);
+            transform: scale(1.15);
+        }
+
+        .auth-note {
+            font-size: 13px;
+            color: var(--text-light);
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        .logout-btn {
+            font-size: 12px;
+            color: var(--accent-dirty);
+            text-decoration: underline;
+            cursor: pointer;
+            margin-top: 12px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="header-left">
+                <h1>
+                    <span>🏠</span>
+                    CleanQuest
+                </h1>
+                <div class="user-badge" onclick="openUserNameModal()" id="userBadge">
+                    <span>👤</span>
+                    <span id="userName">Set Name</span>
+                </div>
+            </div>
+            <div class="dust-counter" onclick="openCompetitionModal()">
+                <span>💨</span>
+                <span id="dustCount">0</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="stats-bar">
+            <div class="stat-item" onclick="filterByStatus('fresh')" id="stat-fresh">
+                <div class="stat-value" style="color: var(--accent-blue);" id="cleanCount">0</div>
+                <div class="stat-label">Clean</div>
+            </div>
+            <div class="stat-item" onclick="filterByStatus('soon')" id="stat-soon">
+                <div class="stat-value" style="color: var(--accent-orange);" id="soonCount">0</div>
+                <div class="stat-label">Soon</div>
+            </div>
+            <div class="stat-item" onclick="filterByStatus('overdue')" id="stat-overdue">
+                <div class="stat-value" style="color: var(--accent-dirty);" id="overdueCount">0</div>
+                <div class="stat-label">Overdue</div>
+            </div>
+        </div>
+
+        <div class="controls-bar">
+            <button class="collapse-all-btn" onclick="toggleCollapseAll()">
+                <span id="collapseAllIcon">▼</span>
+                <span id="collapseAllText">Collapse All</span>
+            </button>
+        </div>
+
+        <button class="add-room-btn" onclick="openAddRoomModal()">
+            <span>🏡</span>
+            <span>Add New Room</span>
+        </button>
+
+        <div id="roomsContainer"></div>
+    </div>
+
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Sign In / Sign Up</span>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-input" id="loginEmail" placeholder="your@email.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="loginPassword" placeholder="Enter password" required minlength="6">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="handleSignUp()">Sign Up</button>
+                    <button type="submit" class="btn btn-primary">Sign In</button>
+                </div>
+
+                <div class="auth-note">
+                    Use the same email/password across devices to sync your account
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="taskActionModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Task Options</span>
+                <button class="close-btn" onclick="closeModal('taskActionModal')">×</button>
+            </div>
+            <div class="form-group">
+                <p style="text-align: center; margin-bottom: 20px; font-size: 16px;">
+                    This task is already marked as complete.<br>What would you like to do?
+                </p>
+                <input type="hidden" id="actionRoomKey">
+                <input type="hidden" id="actionTaskId">
+            </div>
+            <div class="form-actions" style="flex-direction: column; gap: 12px;">
+                <button type="button" class="btn btn-primary" id="btnAddNewRecord">
+                    + Add New Record
+                </button>
+                <button type="button" class="btn btn-secondary" id="btnUncheckTask" style="border: 2px solid var(--accent-dirty); color: var(--accent-dirty); background: white;">
+                    Unmark (Not Done)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span id="modalTitle">Add Task</span>
+                <button class="close-btn" onclick="closeModal('taskModal')">×</button>
+            </div>
+            <form id="taskForm">
+                <input type="hidden" id="editTaskRoom">
+                <input type="hidden" id="editTaskId">
+                
+                <div class="form-group">
+                    <label class="form-label">Task Name</label>
+                    <input type="text" class="form-input" id="taskName" placeholder="e.g., Vacuum floor" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Frequency</label>
+                    <select class="form-select" id="taskFrequency" required onchange="toggleCustomFrequency()">
+                        <option value="1">Daily</option>
+                        <option value="3">Every 3 Days</option>
+                        <option value="7" selected>Weekly</option>
+                        <option value="14">Bi-weekly</option>
+                        <option value="30">Monthly</option>
+                        <option value="90">Quarterly</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                    <div class="custom-frequency" id="customFrequencyInput">
+                        <label class="form-label">Number of Days</label>
+                        <input type="number" class="form-input" id="customDays" min="1" placeholder="Enter number of days">
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="completeTaskModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Mark Task Complete</span>
+                <button class="close-btn" onclick="closeModal('completeTaskModal')">×</button>
+            </div>
+            <form id="completeTaskForm">
+                <input type="hidden" id="completeTaskRoom">
+                <input type="hidden" id="completeTaskId">
+                
+                <div class="form-group">
+                    <label class="form-label">Task: <span id="completeTaskName"></span></label>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Completion Date</label>
+                    <input type="date" class="form-input" id="completionDate" required>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('completeTaskModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Mark Complete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="roomModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Add New Room</span>
+                <button class="close-btn" onclick="closeModal('roomModal')">×</button>
+            </div>
+            <form id="roomForm">
+                <div class="form-group">
+                    <label class="form-label">Room Name</label>
+                    <input type="text" class="form-input" id="roomName" placeholder="e.g., Garage, Office" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Choose Icon</label>
+                    <div class="emoji-picker" id="emojiPicker"></div>
+                    <input type="hidden" id="selectedEmoji" value="🏠">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('roomModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Room</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="userNameModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Your Profile</span>
+                <button class="close-btn" onclick="closeModal('userNameModal')">×</button>
+            </div>
+            <form id="userNameForm">
+                <div class="form-group">
+                    <label class="form-label">Your Name</label>
+                    <input type="text" class="form-input" id="userNameInput" placeholder="Enter your name" required maxlength="20">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('userNameModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Name</button>
+                </div>
+
+                <div class="logout-btn" onclick="handleLogout()">Logout</div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay competition-modal" id="competitionModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Monthly Competition</span>
+                <button class="close-btn" onclick="closeModal('competitionModal')">×</button>
+            </div>
+            <div class="competition-content">
+                <div class="competition-header">
+                    <div class="competition-title" id="competitionStatus">Battle in Progress!</div>
+                    <div class="competition-subtitle" id="competitionSubtitle">Keep cleaning to defeat the Dirt Monster!</div>
+                </div>
+
+                <div class="progress-container">
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span class="progress-name">
+                                <span>🧹</span>
+                                <span>Team Score</span>
+                            </span>
+                            <span class="progress-value" id="teamProgress">0%</span>
+                        </div>
+                        <div class="progress-bar-large">
+                            <div class="progress-fill-large team" id="teamProgressBar"></div>
+                        </div>
+                    </div>
+
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span class="progress-name">
+                                <span>👹</span>
+                                <span>Dirt Monster</span>
+                            </span>
+                            <span class="progress-value" id="monsterProgress">0%</span>
+                        </div>
+                        <div class="progress-bar-large">
+                            <div class="progress-fill-large monster" id="monsterProgressBar"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="user-scores" id="userScoresContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span id="historyTitle">Cleaning History</span>
+                <button class="close-btn" onclick="closeModal('historyModal')">×</button>
+            </div>
+            <div class="history-list" id="historyList"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
