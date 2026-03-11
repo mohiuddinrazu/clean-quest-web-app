@@ -31,28 +31,28 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 ## 🎮 Core Features
 
 ### Task Management
-- **📱 Mobile-First Design**: Optimized for smartphones
-- **🎨 Orange & Blue Theme**: Fresh, energetic color scheme  
-- **🏠 Pre-configured Rooms**: Kitchen, Bathroom, Bedroom, Living Room, Laundry
-- **➕ Custom Rooms**: Add your own with emoji icons
-- **⏰ Smart Scheduling**: Tasks show Fresh, Due Soon, or Overdue
-- **📊 Interactive Stats**: Click stats to highlight matching tasks
-- **💾 Auto-Save**: All data synced to Firebase
+- ** Mobile-First Design**: Optimized for smartphones
+- ** Fresh, energetic color scheme  
+- ** Pre-configured Rooms**: Kitchen, Bathroom, Bedroom, Living Room, Laundry
+- ** Custom Rooms**: Add your own with emoji icons
+- ** Smart Scheduling**: Tasks show Fresh, Due Soon, or Overdue
+- ** Interactive Stats**: Click stats to highlight matching tasks
+- ** Auto-Save**: All data synced to Firebase
 
 ### Task Features
-- **🔄 Custom Frequencies**: Daily to quarterly, or any custom number of days
-- **📈 Progress Bars**: Visual indicators showing task status
-- **📅 Days Counter**: Shows days left or days overdue
-- **📜 Cleaning History**: Full history with dates and user names
-- **🎯 Backdate Support**: Mark tasks complete for past dates
+- ** Custom Frequencies**: Daily to quarterly, or any custom number of days
+- ** Progress Bars**: Visual indicators showing task status
+- ** Days Counter**: Shows days left or days overdue
+- ** Cleaning History**: Full history with dates and user names
+- ** Backdate Support**: Mark tasks complete for past dates
 
 ### The Monthly Competition 🎮
-- **👥 Team Score**: Combined points from all household members
-- **👹 vs Dirt Monster**: Monster progresses steadily each day
-- **📊 Individual Leaderboard**: See who's cleaning the most
-- **🏆 Victory Conditions**: Defeat the monster by month's end
-- **📅 Auto-Reset**: Competition resets automatically each month
-- **💪 Live Updates**: See teammates' progress in real-time
+- ** Team Score**: Combined points from all household members
+- ** Dirt Monster**: Monster progresses steadily each day
+- ** Individual Leaderboard**: See who's cleaning the most
+- ** Victory Conditions**: Defeat the monster by month's end
+- ** Auto-Reset**: Competition resets automatically each month
+- ** Live Updates**: See teammates' progress in real-time
 
 ---
 
@@ -62,8 +62,6 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 
 **Pros**: Real-time sync, live updates, works on all devices
 **Best for**: Households who want seamless collaboration
-
-👉 **[Follow our complete Firebase deployment guide](FIREBASE_DEPLOYMENT.md)**
 
 ### Option 2: GitHub Pages (No Sync)
 
@@ -79,12 +77,12 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 
 ---
 
-## 💡 How to Use
+## How to Use
 
 ### First Time Setup
 
-1. **Open the app** on your device
-2. **Set your name**: Click the user badge (👤) next to CleanQuest title
+1. **Open the app** on your device using the Firebase/GitHub URL
+2. **Create Account (Firebase) & Set your name**: Click the user badge (👤) next to CleanQuest title
 3. **Start completing tasks!**
 
 ### Basic Operations
@@ -93,7 +91,7 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 1. Click the checkbox next to any task
 2. Choose the completion date (defaults to today)
 3. Click "Mark Complete"
-4. You'll earn a point and see a celebration! ✨
+4. You'll earn a point and see a celebration!
 
 **Unmarking Tasks**
 - Click the checkbox again
@@ -189,19 +187,19 @@ Each task shows a progress bar:
 
 ---
 
-## 🔄 Real-Time Sync Features
+## Real-Time Sync Features
 
 When using Firebase:
-- ✅ Task completions appear instantly for everyone
-- ✅ New tasks and rooms sync immediately
-- ✅ Competition scores update live
-- ✅ User names visible to all
-- ✅ History shows who completed what and when
-- ✅ No need to refresh - updates are automatic
+-  Task completions appear instantly for everyone
+-  New tasks and rooms sync immediately
+-  Competition scores update live
+-  User names visible to all
+-  History shows who completed what and when
+-  No need to refresh - updates are automatic
 
 ---
 
-## 📊 Data & Privacy
+##  Data & Privacy
 
 ### What's Stored
 - Room configurations
@@ -213,21 +211,20 @@ When using Firebase:
 
 ### Firebase Setup
 - Stored in Firebase Realtime Database
-- Real-time sync across all devices
-- Accessible only to people with your URL
-- No authentication required by default
-- See FIREBASE_DEPLOYMENT.md for security options
+- Real-time sync across all devices/ accounts
+- Accessible only to people with URL
+- Authentication required by default
 
 ### Privacy
 - User names are chosen by each person
-- No personal data required
+- Emails not visible to other users
 - No external tracking or analytics
 - Data stays within your Firebase project
 - Only people with your URL can access
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Tasks Not Syncing?
 1. Check you're using Firebase (not GitHub Pages)
@@ -257,7 +254,7 @@ When using Firebase:
 
 ---
 
-## 🔧 Customization
+##  Customization
 
 ### Changing Colors
 Edit CSS variables in `index.html`:
@@ -277,7 +274,7 @@ Edit `updateCompetitionProgress()` function in `app.js`
 
 ---
 
-## 📱 Browser Compatibility
+##  Browser Compatibility
 
 Tested and working on:
 - ✅ Chrome (Mobile & Desktop)
@@ -287,7 +284,7 @@ Tested and working on:
 
 ---
 
-## 💰 Firebase Costs
+##  Firebase Costs
 
 Free tier includes:
 - **Hosting**: 10 GB storage, 360 MB/day transfer
@@ -323,11 +320,10 @@ A household cleaning app will stay well within these limits!
 - **index.html** - Main app interface
 - **app.js** - All functionality + Firebase integration
 - **README.md** - This file
-- **FIREBASE_DEPLOYMENT.md** - Complete deployment guide
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Found a bug? Have a feature request?
 - The app is designed for easy customization
@@ -336,9 +332,9 @@ Found a bug? Have a feature request?
 
 ---
 
-## 📞 Support
+## Support
 
-- Firebase setup: See FIREBASE_DEPLOYMENT.md
+- Firebase setup: See Firebase documentation
 - Check browser console (F12) for errors
 - Verify Firebase config matches your project
 
@@ -347,7 +343,6 @@ Found a bug? Have a feature request?
 **Made with ❤️ for clean homes and happy households!**
 
 🎉 **Quick Links:**
-- 📖 [Firebase Deployment Guide](FIREBASE_DEPLOYMENT.md) - Start here!
 - 🔥 [Firebase Console](https://console.firebase.google.com/)
 - 📚 [Firebase Documentation](https://firebase.google.com/docs)
 
