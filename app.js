@@ -875,7 +875,17 @@ function openCompleteTaskModal(roomKey, taskId) {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('completionDate').value = today;
     document.getElementById('completionDate').max = today;
-    
+
+    const userSelect = document.getElementById('completionUser');
+    userSelect.innerHTML = '';
+    Object.entries(allUsers).forEach(([userId, userObj]) => {
+        const option = document.createElement('option');
+        option.value = userId;
+        option.textContent = userObj.name || 'User';
+        if (userId === currentUserId) option.selected = true;
+        userSelect.appendChild(option);
+    });
+
     document.getElementById('completeTaskModal').classList.add('active');
 }
 
@@ -887,45 +897,53 @@ function setupCompleteTaskForm() {
         const roomKey = document.getElementById('completeTaskRoom').value;
         const taskId = document.getElementById('completeTaskId').value;
         const dateStr = document.getElementById('completionDate').value;
-        
+
+        const selectedUserId = document.getElementById('completionUser').value;
+        const selectedUserName = allUsers[selectedUserId]
+            ? (allUsers[selectedUserId].name || 'User')
+            : (currentUserName || 'User');
+
         const completionDate = new Date(dateStr);
         completionDate.setHours(23, 59, 59, 999);
         const timestamp = completionDate.getTime();
-        
-        markTaskComplete(roomKey, taskId, timestamp);
+
+        markTaskComplete(roomKey, taskId, timestamp, selectedUserId, selectedUserName);
         closeModal('completeTaskModal');
     });
 }
 
 // Mark task complete
-function markTaskComplete(roomKey, taskId, timestamp) {
+function markTaskComplete(roomKey, taskId, timestamp, userId, userName) {
+    userId   = userId   || currentUserId;
+    userName = userName || currentUserName || 'User';
+
     const room = rooms[roomKey];
     const task = room.tasks.find(t => t.id === taskId);
-    
+
     if (!task) return;
-    
-    if (!allUsers[currentUserId]) {
-        allUsers[currentUserId] = {
-            name: currentUserName || 'User',
+
+    if (!allUsers[userId]) {
+        allUsers[userId] = {
+            name: userName,
             points: 0
         };
     }
-    
+
     if (!task.lastCompleted || timestamp > task.lastCompleted) {
         task.lastCompleted = timestamp;
-        task.lastCompletedBy = currentUserId;
+        task.lastCompletedBy = userId;
     }
-    
+
     if (!task.history) task.history = [];
     task.history.push({
         timestamp: timestamp,
-        userId: currentUserId,
-        userName: currentUserName || 'User'
+        userId: userId,
+        userName: userName
     });
-    
+
     // We don't rely on allUsers points accumulation anymore for the monthly game
     // but we can still increment it for lifetime tracking if desired
-    allUsers[currentUserId].points = (allUsers[currentUserId].points || 0) + 1;
+    allUsers[userId].points = (allUsers[userId].points || 0) + 1;
     
     saveData();
     forceUIUpdate(); // Update UI immediately
