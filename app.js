@@ -872,7 +872,8 @@ function openCompleteTaskModal(roomKey, taskId) {
     document.getElementById('completeTaskId').value = taskId;
     document.getElementById('completeTaskName').textContent = task.name;
     
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     document.getElementById('completionDate').value = today;
     document.getElementById('completionDate').max = today;
     
@@ -888,8 +889,8 @@ function setupCompleteTaskForm() {
         const taskId = document.getElementById('completeTaskId').value;
         const dateStr = document.getElementById('completionDate').value;
         
-        const completionDate = new Date(dateStr);
-        completionDate.setHours(23, 59, 59, 999);
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const completionDate = new Date(year, month - 1, day, 23, 59, 59, 999);
         const timestamp = completionDate.getTime();
         
         markTaskComplete(roomKey, taskId, timestamp);
@@ -1421,8 +1422,8 @@ function editHistoryEntry(roomKey, taskId, index) {
     const entry = sortedHistory[index];
     
     const date = new Date(entry.timestamp);
-    const dateStr = date.toISOString().split('T')[0];
-    
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
     document.getElementById('completeTaskRoom').value = roomKey;
     document.getElementById('completeTaskId').value = taskId;
     document.getElementById('completeTaskName').textContent = task.name;
