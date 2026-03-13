@@ -234,18 +234,34 @@
         }
 
         .room-delete-btn {
+            flex: 0.1 0 auto;
             background: none;
-            border: none;
+            border: 1px solid #ffcccc;
+            color: #cc4444;
             font-size: 20px;
+            padding: 12px 6px;
+            border-radius: 12px;
             cursor: pointer;
-            opacity: 0.5;
-            transition: all 0.2s ease;
-            padding: 4px;
+            opacity: 0.9;
+            transition: opacity 0.2s, background 0.2s;
+            line-height: 1;
+            font-family: inherit;
         }
 
-        .room-delete-btn:active {
-            transform: scale(0.9);
+        .room-delete-btn:hover {
             opacity: 1;
+            background: #fff0f0;
+        }
+
+        .room-bottom-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .room-bottom-actions.hidden {
+            display: none;
         }
 
         .room-toggle {
@@ -434,7 +450,7 @@
         }
 
         .add-task-btn {
-            width: 100%;
+            flex: 1;
             padding: 14px;
             background: linear-gradient(135deg, var(--accent-blue) 0%, #0077DD 100%);
             color: white;
@@ -444,13 +460,8 @@
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 12px;
             box-shadow: 0 4px 12px rgba(51, 153, 255, 0.3);
             transition: all 0.3s ease;
-        }
-
-        .add-task-btn.hidden {
-            display: none;
         }
 
         .add-task-btn:active {
@@ -1072,6 +1083,11 @@
                 <div class="form-group">
                     <label class="form-label">Completion Date</label>
                     <input type="date" class="form-input" id="completionDate" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Completed by</label>
+                    <select class="form-select" id="completionUser"></select>
                 </div>
 
                 <div class="form-actions">
