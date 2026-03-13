@@ -652,11 +652,11 @@ function toggleCollapseAll() {
     if (allCollapsed) {
         collapsedRooms = new Set(Object.keys(rooms));
         document.getElementById('collapseAllText').textContent = 'Expand All';
-        document.getElementById('collapseAllIcon').textContent = '⚟';
+        document.getElementById('collapseAllIcon').textContent = '▶';
     } else {
         collapsedRooms.clear();
         document.getElementById('collapseAllText').textContent = 'Collapse All';
-        document.getElementById('collapseAllIcon').textContent = '⚞';
+        document.getElementById('collapseAllIcon').textContent = '▼';
     }
     
     saveData();
@@ -670,11 +670,11 @@ function updateCollapseAllButton() {
     if (collapsedCount === totalRooms && totalRooms > 0) {
         allCollapsed = true;
         document.getElementById('collapseAllText').textContent = 'Expand All';
-        document.getElementById('collapseAllIcon').textContent = '⚟';
+        document.getElementById('collapseAllIcon').textContent = '▶';
     } else {
         allCollapsed = false;
         document.getElementById('collapseAllText').textContent = 'Collapse All';
-        document.getElementById('collapseAllIcon').textContent = '⚞';
+        document.getElementById('collapseAllIcon').textContent = '▼';
     }
 }
 
@@ -781,20 +781,18 @@ function createRoomSection(roomKey, room) {
                 <span>${room.name}</span>
             </div>
             <div class="room-actions">
-                <span class="room-toggle ${isCollapsed ? 'collapsed' : ''}">🔻</span>
+                <button class="room-delete-btn" onclick="event.stopPropagation(); deleteRoom('${roomKey}')" title="Delete room">
+                    🗑️
+                </button>
+                <span class="room-toggle ${isCollapsed ? 'collapsed' : ''}">▼</span>
             </div>
         </div>
         <div class="task-list ${isCollapsed ? 'collapsed' : ''}" id="tasks_${roomKey}">
             ${(Array.isArray(room.tasks) ? room.tasks : Object.values(room.tasks || {})).map(task => createTaskItem(roomKey, task)).join('')}
         </div>
-        <div class="room-bottom-actions ${isCollapsed ? 'hidden' : ''}">
-            <button class="room-delete-btn" onclick="deleteRoom('${roomKey}')" title="Delete room">
-                ❌
-            </button>
-            <button class="add-task-btn" onclick="openAddTaskModal('${roomKey}')">
-                 ＋ Add Task
-            </button>
-        </div>
+        <button class="add-task-btn ${isCollapsed ? 'hidden' : ''}" onclick="openAddTaskModal('${roomKey}')">
+            + Add Task
+        </button>
     `;
     
     return section;
@@ -822,17 +820,17 @@ function createTaskItem(roomKey, task) {
                 <div class="task-info" onclick="openHistoryModal('${roomKey}', '${task.id}')">
                     <div class="task-name">${task.name}</div>
                     <div class="task-meta">
-                        <span class="task-frequency">↻ ${frequencyText}</span>
+                        <span class="task-frequency">🔄 ${frequencyText}</span>
                         <span class="task-status status-${status}">${statusText}</span>
                         ${completedBy ? `<span class="task-completed-by">by ${completedBy}</span>` : ''}
                     </div>
                 </div>
                 <div class="task-actions" onclick="event.stopPropagation();">
                     <button class="task-btn" onclick="openEditTaskModal('${roomKey}', '${task.id}')" title="Edit">
-                        ⋮
+                        ⚙️
                     </button>
                     <button class="task-btn" onclick="deleteTask('${roomKey}', '${task.id}')" title="Delete">
-                        ⨉
+                        🗑️
                     </button>
                 </div>
             </div>
@@ -874,21 +872,10 @@ function openCompleteTaskModal(roomKey, taskId) {
     document.getElementById('completeTaskId').value = taskId;
     document.getElementById('completeTaskName').textContent = task.name;
     
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const today = new Date().toISOString().split('T')[0];
     document.getElementById('completionDate').value = today;
     document.getElementById('completionDate').max = today;
-
-    const userSelect = document.getElementById('completionUser');
-    userSelect.innerHTML = '';
-    Object.entries(allUsers).forEach(([userId, userObj]) => {
-        const option = document.createElement('option');
-        option.value = userId;
-        option.textContent = userObj.name || 'User';
-        if (userId === currentUserId) option.selected = true;
-        userSelect.appendChild(option);
-    });
-
+    
     document.getElementById('completeTaskModal').classList.add('active');
 }
 
@@ -900,53 +887,45 @@ function setupCompleteTaskForm() {
         const roomKey = document.getElementById('completeTaskRoom').value;
         const taskId = document.getElementById('completeTaskId').value;
         const dateStr = document.getElementById('completionDate').value;
-
-        const selectedUserId = document.getElementById('completionUser').value;
-        const selectedUserName = allUsers[selectedUserId]
-            ? (allUsers[selectedUserId].name || 'User')
-            : (currentUserName || 'User');
-
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const completionDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+        
+        const completionDate = new Date(dateStr);
+        completionDate.setHours(23, 59, 59, 999);
         const timestamp = completionDate.getTime();
-
-        markTaskComplete(roomKey, taskId, timestamp, selectedUserId, selectedUserName);
+        
+        markTaskComplete(roomKey, taskId, timestamp);
         closeModal('completeTaskModal');
     });
 }
 
 // Mark task complete
-function markTaskComplete(roomKey, taskId, timestamp, userId, userName) {
-    userId   = userId   || currentUserId;
-    userName = userName || currentUserName || 'User';
-
+function markTaskComplete(roomKey, taskId, timestamp) {
     const room = rooms[roomKey];
     const task = room.tasks.find(t => t.id === taskId);
-
+    
     if (!task) return;
-
-    if (!allUsers[userId]) {
-        allUsers[userId] = {
-            name: userName,
+    
+    if (!allUsers[currentUserId]) {
+        allUsers[currentUserId] = {
+            name: currentUserName || 'User',
             points: 0
         };
     }
-
+    
     if (!task.lastCompleted || timestamp > task.lastCompleted) {
         task.lastCompleted = timestamp;
-        task.lastCompletedBy = userId;
+        task.lastCompletedBy = currentUserId;
     }
-
+    
     if (!task.history) task.history = [];
     task.history.push({
         timestamp: timestamp,
-        userId: userId,
-        userName: userName
+        userId: currentUserId,
+        userName: currentUserName || 'User'
     });
-
+    
     // We don't rely on allUsers points accumulation anymore for the monthly game
     // but we can still increment it for lifetime tracking if desired
-    allUsers[userId].points = (allUsers[userId].points || 0) + 1;
+    allUsers[currentUserId].points = (allUsers[currentUserId].points || 0) + 1;
     
     saveData();
     forceUIUpdate(); // Update UI immediately
@@ -1002,7 +981,7 @@ function getProgressPercent(task) {
 // Get status text
 function getStatusText(task) {
     if (!task.lastCompleted) {
-        return '😟 Never done';
+        return '⚠️ Never done';
     }
     
     const daysSince = (Date.now() - task.lastCompleted) / (1000 * 60 * 60 * 24);
@@ -1010,7 +989,7 @@ function getStatusText(task) {
     
     if (daysSince >= task.frequency) {
         const daysOverdue = Math.floor(daysSince - task.frequency);
-        return `⚠ ${daysOverdue}d overdue`;
+        return `⚠️ ${daysOverdue}d overdue`;
     }
     
     if (daysSince >= task.frequency * 0.7) {
@@ -1442,8 +1421,8 @@ function editHistoryEntry(roomKey, taskId, index) {
     const entry = sortedHistory[index];
     
     const date = new Date(entry.timestamp);
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
+    const dateStr = date.toISOString().split('T')[0];
+    
     document.getElementById('completeTaskRoom').value = roomKey;
     document.getElementById('completeTaskId').value = taskId;
     document.getElementById('completeTaskName').textContent = task.name;
