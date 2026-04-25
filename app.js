@@ -2,13 +2,13 @@
 // FIREBASE CONFIGURATION 
 // =============================================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyA3WYbm_4-XXXXXXX",
-  authDomain: "clean-quest.firebaseapp.com",
-  databaseURL: "https://clean-quest.firebaseio.com/",
-  projectId: "clean-quest",
-  storageBucket: "clean-quest.firebasestorage.app",
+  apiKey: "AIzaSyA3WYbm_4-XXXXXXXX",
+  authDomain: "clean-questcom",
+  databaseURL: "ht",
+  projectId: "clean-quest-web-a",
+  storageBucket: "cleapp",
   messagingSenderId: "216",
-  appId: "1:216"
+  appId: "1:2167:web:27e6d7d22c6"
 };
 
 // Check if Firebase SDK is loaded and config is set
@@ -111,6 +111,7 @@ let competitionData = {};
 let currentUserId = null;
 let currentUserName = '';
 let allUsers = {};
+let adhocCompletions = [];
 let isUpdating = false; // Prevents render loops
 let allCollapsed = false; // For collapse all button
 let listenersActive = false; // Track if listeners are set up
@@ -313,6 +314,17 @@ function setupFirebaseListeners() {
         
         updateCompetitionProgress();
     });
+
+    // Listen to ad-hoc completions
+    db.ref('adhocCompletions').on('value', (snapshot) => {
+        if (isUpdating) return;
+        if (snapshot.exists()) {
+            const raw = snapshot.val();
+            adhocCompletions = Array.isArray(raw) ? raw : Object.values(raw);
+        } else {
+            adhocCompletions = [];
+        }
+    });
 }
 
 // Initialize default rooms
@@ -391,7 +403,10 @@ function loadDataFromLocalStorage() {
     if (savedRoomOrder) {
         roomOrder = JSON.parse(savedRoomOrder);
     }
-    
+
+    const savedAdhoc = localStorage.getItem('cleanquest_adhocCompletions');
+    adhocCompletions = savedAdhoc ? JSON.parse(savedAdhoc) : [];
+
     // Ensure current user exists
     if (!allUsers[currentUserId]) {
         allUsers[currentUserId] = {
@@ -422,7 +437,8 @@ function saveDataToFirebase() {
         updates['/competition'] = competitionData;
         updates['/users'] = allUsers;
         updates[`/userPreferences/${currentUserId}/collapsed`] = [...collapsedRooms];
-        
+        updates['/adhocCompletions'] = adhocCompletions;
+
         db.ref().update(updates).then(() => {
             console.log('✅ Data saved successfully');
             setTimeout(() => {
@@ -443,6 +459,7 @@ function saveDataToLocalStorage() {
     localStorage.setItem('cleanquest_users', JSON.stringify(allUsers));
     localStorage.setItem('cleanquest_competitionHistory', JSON.stringify(competitionHistory));
     localStorage.setItem('cleanquest_roomOrder', JSON.stringify(roomOrder));
+    localStorage.setItem('cleanquest_adhocCompletions', JSON.stringify(adhocCompletions));
 }
 
 // Unified save function
@@ -612,6 +629,12 @@ function calculateMonthlyScores(year, monthIndex) {
                     scores[uid] = (scores[uid] || 0) + 1;
                 }
             }
+        }
+    }
+    for (const entry of adhocCompletions) {
+        const date = new Date(entry.timestamp);
+        if (date.getFullYear() === year && date.getMonth() === monthIndex) {
+            scores[entry.userId] = (scores[entry.userId] || 0) + 1;
         }
     }
     return scores;
@@ -948,6 +971,7 @@ function markTaskComplete(roomKey, taskId, timestamp, userId, userName) {
         userId: userId,
         userName: userName
     });
+    if (task.history.length > 25) task.history = task.history.slice(-25);
 
     // We don't rely on allUsers points accumulation anymore for the monthly game
     // but we can still increment it for lifetime tracking if desired
@@ -957,6 +981,63 @@ function markTaskComplete(roomKey, taskId, timestamp, userId, userName) {
     forceUIUpdate(); // Update UI immediately
     showCelebration();
     playSound('complete_task_2.mp3');
+}
+
+function openAdhocModal() {
+    document.getElementById('adhocTaskForm').reset();
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    document.getElementById('adhocDate').value = today;
+    document.getElementById('adhocDate').max = today;
+    const userSelect = document.getElementById('adhocUser');
+    userSelect.innerHTML = '';
+    Object.entries(allUsers).forEach(([uid, u]) => {
+        const opt = document.createElement('option');
+        opt.value = uid;
+        opt.textContent = u.name || 'User';
+        if (uid === currentUserId) opt.selected = true;
+        userSelect.appendChild(opt);
+    });
+    document.getElementById('adhocModal').classList.add('active');
+}
+
+function openUserHistoryModal(userId) {
+    const user = allUsers[userId] || { name: 'Unknown User' };
+    document.getElementById('userHistoryTitle').textContent = `${user.name}'s History`;
+    const entries = [];
+    for (const [roomKey, room] of Object.entries(rooms)) {
+        const tasks = Array.isArray(room.tasks) ? room.tasks : Object.values(room.tasks || {});
+        for (const task of tasks) {
+            const history = Array.isArray(task.history) ? task.history : Object.values(task.history || {});
+            for (const entry of history) {
+                if (entry.userId === userId) {
+                    entries.push({ taskName: task.name, roomName: room.name, roomIcon: room.icon || '🏠', timestamp: entry.timestamp });
+                }
+            }
+        }
+    }
+    for (const entry of adhocCompletions) {
+        if (entry.userId === userId) {
+            entries.push({ taskName: entry.taskName, roomName: 'Ad-hoc', roomIcon: '✨', timestamp: entry.timestamp });
+        }
+    }
+    entries.sort((a, b) => b.timestamp - a.timestamp);
+    const recent = entries.slice(0, 20);
+    const listEl = document.getElementById('userHistoryList');
+    if (recent.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No tasks completed yet.</div>';
+    } else {
+        listEl.innerHTML = recent.map(item => {
+            const dateStr = new Date(item.timestamp).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+            return `<div class="history-item">
+                <div>
+                    <div class="history-date">${item.roomIcon} ${item.taskName}</div>
+                    <div class="history-user">${item.roomName} &middot; ${dateStr}</div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    document.getElementById('userHistoryModal').classList.add('active');
 }
 
 // Unmark task
@@ -1289,8 +1370,8 @@ function updateCompetitionProgress() {
     const monsterBar = document.getElementById('monsterProgressBar');
     if (monsterBar) monsterBar.style.width = monsterPercent + '%';
     
-    document.getElementById('teamProgress').textContent = teamPercent + '%';
-    document.getElementById('monsterProgress').textContent = monsterPercent + '%';
+    document.getElementById('teamProgress').textContent = teamPoints;
+    document.getElementById('monsterProgress').textContent = monsterProgress;
     
     // Update user scores
     const scoresContainer = document.getElementById('userScoresContainer');
@@ -1308,7 +1389,9 @@ function updateCompetitionProgress() {
             const user = allUsers[userId] || { name: 'Unknown User' };
             const isCurrentUser = userId === currentUserId;
             scoresContainer.innerHTML += `
-                <div class="user-score-item" style="${isCurrentUser ? 'border: 2px solid var(--accent-blue);' : ''}">
+                <div class="user-score-item clickable"
+                     style="${isCurrentUser ? 'border: 2px solid var(--accent-blue);' : ''}"
+                     onclick="openUserHistoryModal('${userId}')">
                     <div class="user-score-name">
                         ${isCurrentUser ? '👤' : '👥'} ${user.name || 'User'}
                     </div>
@@ -1323,7 +1406,11 @@ function updateCompetitionProgress() {
     const subtitleEl = document.getElementById('competitionSubtitle');
     
     if (statusEl && subtitleEl) {
-        if (currentDay >= daysInMonth - 1) {
+        const totalSecondsInDay = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+        const isLastDay = currentDay === daysInMonth;
+        const shouldDeclareWinner = isLastDay && totalSecondsInDay >= (23 * 3600 + 59 * 60 + 59);
+
+        if (shouldDeclareWinner) {
             if (teamPoints >= monsterProgress) {
                 statusEl.textContent = '🎉 Team Victory!';
                 subtitleEl.textContent = 'Your household defeated the Dirt Monster this month!';
@@ -1347,7 +1434,7 @@ function updateCompetitionProgress() {
     if (competitionHistory && Object.keys(competitionHistory).length > 0 && scoresContainer) {
         const historyHtml = `
             <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid var(--bg-secondary);">
-                <div style="font-weight: 600; margin-bottom: 12px; text-align: center;">📊 Past Months</div>
+                <div style="font-weight: 600; margin-bottom: 12px; text-align: center;">Previously on CleanQuest...</div>
                 ${Object.entries(competitionHistory)
                     .sort((a, b) => b[0].localeCompare(a[0]))
                     .slice(0, 6)
@@ -1356,11 +1443,23 @@ function updateCompetitionProgress() {
                         const monthName = new Date(year, monthNum).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
                         const icon = data.winner === 'Team' ? '🎉' : '👹';
                         const color = data.winner === 'Team' ? 'var(--accent-blue)' : 'var(--accent-dirty)';
+
+                        let userWinnerHtml = '';
+                        if (data.participants && data.participants.length > 0) {
+                            const topUser = data.participants.reduce((best, p) => p.points > best.points ? p : best, data.participants[0]);
+                            if (topUser.points > 0) {
+                                userWinnerHtml = `<div style="font-size: 12px; color: var(--text-light); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--bg-secondary);">👑 MVC: <strong>${topUser.name}</strong> (${topUser.points} pts)</div>`;
+                            }
+                        }
+
                         return `
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-primary); border-radius: 8px; margin-bottom: 8px;">
-                                <span style="flex: 1;">${monthName}</span>
-                                <span style="flex: 1; text-align: center; font-weight: 600; color: ${color};">${icon} ${data.winner}</span>
-                                <span style="flex: 1; text-align: right; font-size: 12px;">${data.teamPoints} vs ${data.monsterPoints}</span>
+                            <div style="padding: 12px; background: var(--bg-primary); border-radius: 8px; margin-bottom: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="flex: 1;">${monthName}</span>
+                                    <span style="flex: 1; text-align: center; font-weight: 600; color: ${color};">${icon} ${data.winner}</span>
+                                    <span style="flex: 1; text-align: right; font-size: 12px;">${data.teamPoints} vs ${data.monsterPoints}</span>
+                                </div>
+                                ${userWinnerHtml}
                             </div>
                         `;
                     }).join('')}
@@ -1640,6 +1739,33 @@ function setupFormHandlers() {
     });
     
     setupCompleteTaskForm();
+
+    document.getElementById('adhocTaskForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const taskName = document.getElementById('adhocTaskName').value.trim();
+        if (!taskName) return;
+        const dateStr = document.getElementById('adhocDate').value;
+        const selectedUserId = document.getElementById('adhocUser').value || currentUserId;
+        const selectedUserName = (allUsers[selectedUserId] && allUsers[selectedUserId].name)
+            ? allUsers[selectedUserId].name : (currentUserName || 'User');
+        const [y, mo, d] = dateStr.split('-').map(Number);
+        const timestamp = new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
+        const entry = {
+            id: 'adhoc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            taskName,
+            timestamp,
+            userId: selectedUserId,
+            userName: selectedUserName
+        };
+        adhocCompletions.push(entry);
+        if (!allUsers[selectedUserId]) allUsers[selectedUserId] = { name: selectedUserName, points: 0 };
+        allUsers[selectedUserId].points = (allUsers[selectedUserId].points || 0) + 1;
+        saveData();
+        forceUIUpdate();
+        showCelebration();
+        playSound('complete_task_2.mp3');
+        closeModal('adhocModal');
+    });
 }
 
 // Delete task
