@@ -1,26 +1,26 @@
-# 🏠 CleanQuest - House Cleaning Tracker
+# CleanQuest - House Cleaning Tracker
 
 A modern, mobile-optimized web app for tracking house cleaning tasks with **real-time Firebase sync** and gamification. Perfect for households to coordinate cleaning schedules with live updates!
 
-## ✨ New Features (Latest Version)
+## New Features (Latest Version)
 
-### 🔄 **Real-Time Firebase Sync**
+### **Real-Time Firebase Sync**
 - All changes sync instantly across all devices
 - No more confusion about what's been done
 - See live updates when housemates complete tasks
 
-### 👥 **Multi-User Competition**
+### **Multi-User Competition**
 - Each person sets their name
 - Individual points tracked for each user
 - **Team vs Dirt Monster**: Combined household score competes against the monster
 - Monthly leaderboard shows who's contributing most
 
-### 📅 **Backdate Completions**
+### **Backdate Completions**
 - Mark tasks complete with any date
 - Perfect for when you forget to update the app
 - Edit or delete completion history
 
-### ✅ **Improved Task Management**
+### **Improved Task Management**
 - Click checkbox to mark complete (shows date picker)
 - Unmark tasks if clicked by mistake
 - View complete history with user names and dates
@@ -28,7 +28,7 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 
 ---
 
-## 🎮 Core Features
+## Core Features
 
 ### Task Management
 - ** Mobile-First Design**: Optimized for smartphones
@@ -46,7 +46,7 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 - ** Cleaning History**: Full history with dates and user names
 - ** Backdate Support**: Mark tasks complete for past dates
 
-### The Monthly Competition 🎮
+### The Monthly Competition
 - ** Team Score**: Combined points from all household members
 - ** Dirt Monster**: Monster progresses steadily each day
 - ** Individual Leaderboard**: See who's cleaning the most
@@ -56,7 +56,7 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Option 1: Firebase Hosting (Recommended for Households)
 
@@ -109,7 +109,7 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 - Click again to clear filter
 
 **The Competition**
-- Click the dust counter (💨) in the header
+- Click the dust counter in the header
 - View team score vs dirt monster
 - See individual leaderboard
 - Check days remaining in month
@@ -117,7 +117,7 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 ### Managing Rooms & Tasks
 
 **Adding New Rooms**
-1. Click **"🏡 Add New Room"**
+1. Click **"+ Add New Room"**
 2. Enter room name
 3. Choose an emoji icon
 4. Click **Create Room**
@@ -134,17 +134,17 @@ A modern, mobile-optimized web app for tracking house cleaning tasks with **real
 - Click **Save Task**
 
 **Deleting**
-- Tasks: Click 🗑️ icon next to task
-- Rooms: Click 🗑️ icon next to room name
+- Tasks: Click X icon next to task
+- Rooms: Click X icon next to room name
 
 ---
 
-## 🎨 Understanding Task Status
+## Understanding Task Status
 
 ### Visual Indicators
-- **🟦 Blue (Fresh)**: Recently completed, in first 70% of cycle
-- **🟧 Orange (Due Soon)**: Approaching due date (70%+ of cycle)
-- **🔴 Red (Overdue)**: Past due date
+- ** Blue (Fresh)**: Recently completed, in first 70% of cycle
+- ** Orange (Due Soon)**: Approaching due date (70%+ of cycle)
+- ** Red (Overdue)**: Past due date
 
 ### Progress Bars
 Each task shows a progress bar:
@@ -153,14 +153,14 @@ Each task shows a progress bar:
 - **100%**: Becomes "Overdue"
 
 ### Status Messages
-- **"✅ 5d left"**: Fresh, 5 days until due soon
-- **"⏰ 2d left"**: Due soon, 2 days until overdue
-- **"⚠️ 3d overdue"**: Overdue by 3 days
-- **"⚠️ Never done"**: New task, never completed
+- **" 5d left"**: Fresh, 5 days until due soon
+- **" 2d left"**: Due soon, 2 days until overdue
+- **" 3d overdue"**: Overdue by 3 days
+- **" Never done"**: New task, never completed
 
 ---
 
-## 🏆 The Competition Explained
+## The Competition Explained
 
 ### How It Works
 
@@ -277,10 +277,10 @@ Edit `updateCompetitionProgress()` function in `app.js`
 ##  Browser Compatibility
 
 Tested and working on:
-- ✅ Chrome (Mobile & Desktop)
-- ✅ Safari (Mobile & Desktop)  
-- ✅ Firefox (Mobile & Desktop)
-- ✅ Edge (Desktop)
+-  Chrome (Mobile & Desktop)
+-  Safari (Mobile & Desktop)  
+-  Firefox (Mobile & Desktop)
+-  Edge (Desktop)
 
 ---
 
@@ -294,58 +294,9 @@ A household cleaning app will stay well within these limits!
 
 ---
 
-## 🆕 Changelog
-
-### Version 2.0 (Current)
-- ✅ Real-time Firebase sync
-- ✅ Multi-user competition with team vs monster
-- ✅ Individual user names and points
-- ✅ Backdate task completions
-- ✅ Edit/delete task history
-- ✅ Fixed checkbox functionality
-- ✅ Unmark tasks if clicked by mistake
-- ✅ User names shown in task history
-- ✅ Comprehensive Firebase deployment guide
-
-### Version 1.0
-- Initial release with localStorage
-- Basic task tracking
-- Single-user dust counter game
-- 5 default rooms
-
----
-
-## 📄 Files Included
-
-- **index.html** - Main app interface
-- **app.js** - All functionality + Firebase integration
-- **README.md** - This file
-
----
-
-## Contributing
-
-Found a bug? Have a feature request?
-- The app is designed for easy customization
-- All code is commented
-- Fork and modify for your needs!
-
----
-
-## Support
-
-- Firebase setup: See Firebase documentation
-- Check browser console (F12) for errors
-- Verify Firebase config matches your project
 
 ---
 
 **Made with ❤️ for clean homes and happy households!**
 
-🎉 **Quick Links:**
-- 🔥 [Firebase Console](https://console.firebase.google.com/)
-- 📚 [Firebase Documentation](https://firebase.google.com/docs)
-
----
-
-Enjoy CleanQuest! 🧹✨
+Enjoy CleanQuest
