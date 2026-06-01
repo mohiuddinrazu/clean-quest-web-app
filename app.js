@@ -2,13 +2,13 @@
 // FIREBASE CONFIGURATION 
 // =============================================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyA3WYbm_4-XXXXXXXX",
-  authDomain: "clean-questcom",
-  databaseURL: "ht",
-  projectId: "clean-quest-web-a",
-  storageBucket: "cleapp",
+  apiKey: "AI",
+  authDomain: "clean-quest",
+  databaseURL: "https://clean-questcom",
+  projectId: "cleanqst",
+  storageBucket: "clean-quest",
   messagingSenderId: "216",
-  appId: "1:2167:web:27e6d7d22c6"
+  appId: "1:216"
 };
 
 // Check if Firebase SDK is loaded and config is set
@@ -117,6 +117,80 @@ let allCollapsed = false; // For collapse all button
 let listenersActive = false; // Track if listeners are set up
 let notificationsSent = false; // Track if notifications have been sent this session
 
+// =============================================================================
+// [IMPORTANT] RACE-CONDITION GUARD
+// =============================================================================
+//   1. Loading screen: <body> carries `app-loading` until every critical path has
+//      reported its first snapshot. Buttons can't be clicked.
+//   2. Write guard: every Firebase write goes through `assertReady`, which
+//      refuses to fire until `dataReady` is true.
+//   3. No silent re-seed: an empty /rooms node no longer triggers an
+//      automatic write of defaults; the user must explicitly opt in.
+
+const initialLoadStatus = {
+    rooms: false,
+    users: false,
+    competition: false,
+    adhocCompletions: false,
+    userPreferences: false, // covers collapsed + roomOrder
+};
+let dataReady = false;
+let firstRunSeed = false;     // true only when this account has never been seen
+let recoveryNeeded = false;   // true when /rooms is missing for an existing user
+
+// Operations that need to run *after* dataReady flips true. Used by
+// listeners that want to perform a write (e.g. first-run seeding) without
+// racing the gate.
+const pendingPostReady = [];
+function whenReady(fn) {
+    if (dataReady) fn();
+    else pendingPostReady.push(fn);
+}
+
+function markLoaded(key) {
+    if (initialLoadStatus[key]) return;
+    initialLoadStatus[key] = true;
+    if (!dataReady && Object.values(initialLoadStatus).every(Boolean)) {
+        dataReady = true;
+        console.log('✅ All initial data loaded - UI unlocked');
+        document.body.classList.remove('app-loading');
+        // Drain any deferred post-load work *before* updating the UI so the
+        // UI reflects the seeded state.
+        while (pendingPostReady.length) {
+            try { pendingPostReady.shift()(); }
+            catch (err) { console.error('post-ready task failed:', err); }
+        }
+        forceUIUpdate();
+        if (recoveryNeeded) {
+            showRecoveryModal();
+        }
+    }
+}
+
+function assertReady(op) {
+    if (!dataReady) {
+        console.warn(`🛑 Blocked write (${op}): data not yet loaded`);
+        return false;
+    }
+    return true;
+}
+
+function showRecoveryModal() {
+    const el = document.getElementById('recoveryModal');
+    if (el) el.classList.add('active');
+}
+
+// Triggered by the "Start with defaults" button in the recovery modal. This
+// is the ONLY user-driven path that seeds defaults for an existing account -
+// the listener no longer does it silently.
+function confirmSeedDefaults() {
+    closeModal('recoveryModal');
+    if (!db || !assertReady('confirmSeedDefaults')) return;
+    initializeDefaultRooms();
+    writeAllRooms();
+    forceUIUpdate();
+}
+
 function playSound(filename) {
     const audio = new Audio(filename);
     audio.play().catch(() => {});
@@ -124,6 +198,12 @@ function playSound(filename) {
 
 // Initialize app
 function init() {
+    // Lock the UI until data has loaded. setupFormHandlers() below will
+    // wire up listeners that read state, but pointer-events:none on the
+    // underlying DOM (set by the .app-loading body class) prevents any user
+    // input from reaching them.
+    document.body.classList.add('app-loading');
+
     if (auth) {
         // Check authentication state
         auth.onAuthStateChanged((user) => {
@@ -138,21 +218,23 @@ function init() {
             }
         });
     } else {
-        // No Firebase - use localStorage
+        // No Firebase - use localStorage. There is no async fetch here, so
+        // we can flip every load flag synchronously and unlock the UI now.
         currentUserId = localStorage.getItem('cleanquest_userId');
         if (!currentUserId) {
             currentUserId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             localStorage.setItem('cleanquest_userId', currentUserId);
         }
-        
+
         currentUserName = localStorage.getItem('cleanquest_userName') || '';
         updateUserNameDisplay();
-        
+
         loadDataFromLocalStorage();
         createDustParticles();
+        for (const k of Object.keys(initialLoadStatus)) markLoaded(k);
         forceUIUpdate();
     }
-    
+
     setupFormHandlers();
     
     // Request notification permission ONLY if default (hasn't been asked yet)
@@ -183,34 +265,46 @@ function showLoginModal() {
 // Load user profile
 function loadUserProfile() {
     if (!db || !currentUserId) return;
-    
+
     console.log('📥 Loading user profile for:', currentUserId);
-    
-    // Load user name from Firebase
-    db.ref(`users/${currentUserId}/name`).once('value', (snapshot) => {
-        if (snapshot.exists()) {
-            currentUserName = snapshot.val();
-            console.log('✅ User name loaded:', currentUserName);
-            updateUserNameDisplay();
-            
-            // Now setup listeners and load data
-            setupFirebaseListeners();
-            createDustParticles();
+
+    // We check the user's *root* record (not just the name) to decide whether
+    // this account has ever been seen before. Only a brand-new account is
+    // allowed to seed default rooms; for every other case, an empty /rooms
+    // is treated as a recovery situation, not an opportunity to overwrite.
+    db.ref(`users/${currentUserId}`).once('value', (snapshot) => {
+        const userExists = snapshot.exists();
+        if (userExists) {
+            const val = snapshot.val() || {};
+            currentUserName = val.name || '';
+            firstRunSeed = false;
+            console.log('✅ Existing user loaded:', currentUserName);
         } else {
-            console.log('⚠️ No name found, prompting user');
-            // User doesn't have a name yet
-            setupFirebaseListeners();
-            createDustParticles();
+            firstRunSeed = true;
+            console.log('🌱 New account - defaults will be seeded once');
+        }
+        updateUserNameDisplay();
+        setupFirebaseListeners();
+        createDustParticles();
+        if (!currentUserName) {
             setTimeout(() => openUserNameModal(), 500);
         }
     }).catch((error) => {
         console.error('❌ Error loading user profile:', error);
+        // On error, fail safe: do NOT seed defaults, do NOT mark ready.
+        // Listeners will still attempt to populate; if they fail, the UI
+        // remains locked, which is the correct behaviour.
+        firstRunSeed = false;
         setupFirebaseListeners();
         createDustParticles();
     });
 }
 
-// Setup Firebase listeners with debouncing
+// Setup Firebase listeners with debouncing.
+//
+// Every critical listener calls markLoaded(...) on its first snapshot.
+// dataReady - and therefore the ability of any handler to write - is gated
+// on every flag in initialLoadStatus flipping to true.
 function setupFirebaseListeners() {
     if (listenersActive) {
         console.log('⚠️ Listeners already active, skipping setup');
@@ -218,104 +312,126 @@ function setupFirebaseListeners() {
     }
     listenersActive = true;
     console.log('🔧 Setting up Firebase listeners');
-    
-    // Listen to rooms with debouncing
+
+    // --- rooms ---------------------------------------------------------------
     let roomsTimeout;
+    let roomsFirstSnapshot = true;
     db.ref('rooms').on('value', (snapshot) => {
-        if (isUpdating) {
-            return;
-        }
-        
+        if (isUpdating) return;
+
         clearTimeout(roomsTimeout);
         roomsTimeout = setTimeout(() => {
             console.log('📥 Room data received from Firebase');
             if (snapshot.exists()) {
                 rooms = snapshot.val();
-                // FIX: Firebase stores JS arrays as objects with numeric keys.
-                // Normalize tasks and history back to real arrays after every load.
                 normalizeRoomsData(rooms);
                 console.log('✅ Rooms loaded:', Object.keys(rooms).length);
-            } else {
-                console.log('⚠️ No rooms found, initializing defaults');
+            } else if (roomsFirstSnapshot && firstRunSeed) {
+                // True first run for a brand-new account - safe to seed.
+                console.log('🌱 First run: seeding default rooms');
                 initializeDefaultRooms();
-                saveDataToFirebase();
+                // Queue the write for after every listener has reported, so
+                // dataReady is true and assertReady passes.
+                whenReady(() => writeAllRooms());
+            } else if (roomsFirstSnapshot) {
+                // Returning user with no rooms - DO NOT auto-seed. Surface a
+                // recovery prompt instead. This is the path that previously
+                // destroyed user data.
+                console.warn('⚠️ Existing user but /rooms is missing - recovery mode');
+                rooms = {};
+                recoveryNeeded = true;
+            } else {
+                // Live deletion of all rooms after initial load. Reflect, but
+                // do not re-seed.
+                rooms = {};
             }
+            roomsFirstSnapshot = false;
+            markLoaded('rooms');
             forceUIUpdate();
-            checkMonthlyReset();
-            checkAndNotifyDueTasks(); 
+            // dataReady may not be true yet if rooms is the first listener
+            // to fire; queue the monthly-reset check so resetCompetition()'s
+            // writes don't get dropped by assertReady().
+            whenReady(() => checkMonthlyReset());
+            checkAndNotifyDueTasks();
         }, 150);
     });
-    
-    // Listen to collapsed rooms (only for current user)
+
+    // --- collapsed rooms (per user) -----------------------------------------
     db.ref(`userPreferences/${currentUserId}/collapsed`).on('value', (snapshot) => {
         if (isUpdating) return;
-        
+
         if (snapshot.exists()) {
             const collapsed = snapshot.val();
             collapsedRooms = new Set(collapsed);
             updateCollapseAllButton();
-            if (Object.keys(rooms).length > 0) {
-                renderRooms();
-            }
+            if (Object.keys(rooms).length > 0) renderRooms();
         }
+        prefsCollapsedSeen = true;
+        tryMarkPreferencesLoaded();
     });
-    
-    // Listen to competition data
+
+    // --- competition --------------------------------------------------------
+    let competitionFirstSnapshot = true;
     db.ref('competition').on('value', (snapshot) => {
         if (snapshot.exists()) {
             competitionData = snapshot.val();
-        } else {
-            resetCompetition();
+        } else if (competitionFirstSnapshot && firstRunSeed) {
+            // First-run only: seed an initial competition record.
+            // resetCompetition writes to Firebase, so it's queued for after
+            // dataReady flips true.
+            whenReady(() => resetCompetition());
         }
+        competitionFirstSnapshot = false;
+        markLoaded('competition');
         updateCompetitionProgress();
     });
-    
-    // Listen to room order (per user)
+
+    // --- room order (per user) ----------------------------------------------
     let roomOrderTimeout;
     db.ref(`userPreferences/${currentUserId}/roomOrder`).on('value', (snapshot) => {
         if (isUpdating) return;
-        
+
         clearTimeout(roomOrderTimeout);
         roomOrderTimeout = setTimeout(() => {
             if (snapshot.exists()) {
                 const serverOrder = snapshot.val();
                 if (serverOrder && Array.isArray(serverOrder)) {
                     roomOrder = serverOrder;
-                    if (Object.keys(rooms).length > 0) {
-                        renderRooms();
-                    }
+                    if (Object.keys(rooms).length > 0) renderRooms();
                 }
             }
+            prefsRoomOrderSeen = true;
+            tryMarkPreferencesLoaded();
         }, 150);
     });
 
-    // Listen to competition history
+    // --- competition history (read-only consumer) ---------------------------
     db.ref('competitionHistory').on('value', (snapshot) => {
         if (snapshot.exists()) {
             competitionHistory = snapshot.val();
         }
     });
-    // Listen to all users
+
+    // --- all users ----------------------------------------------------------
     db.ref('users').on('value', (snapshot) => {
-        if (snapshot.exists()) {
-            allUsers = snapshot.val();
-        } else {
-            allUsers = {};
-        }
-        
-        // Ensure current user exists
-        if (!allUsers[currentUserId]) {
+        allUsers = snapshot.exists() ? snapshot.val() : {};
+
+        // Ensure current user exists. This used to call `.set(...)` directly,
+        // bypassing any guard. Now it's gated through writeUser and queued
+        // until dataReady is true.
+        if (currentUserId && !allUsers[currentUserId]) {
             allUsers[currentUserId] = {
                 name: currentUserName || 'User',
                 points: 0
             };
-            db.ref(`users/${currentUserId}`).set(allUsers[currentUserId]);
+            whenReady(() => writeUser(currentUserId));
         }
-        
+
+        markLoaded('users');
         updateCompetitionProgress();
     });
 
-    // Listen to ad-hoc completions
+    // --- ad-hoc completions -------------------------------------------------
     db.ref('adhocCompletions').on('value', (snapshot) => {
         if (isUpdating) return;
         if (snapshot.exists()) {
@@ -324,7 +440,21 @@ function setupFirebaseListeners() {
         } else {
             adhocCompletions = [];
         }
+        markLoaded('adhocCompletions');
     });
+}
+
+// userPreferences combines the collapsed and roomOrder paths. We require
+// BOTH listeners to have reported once before considering preferences ready,
+// otherwise an early write of `roomOrder = []` could overwrite a real saved
+// order in Firebase. Each Firebase ref always fires its `.on('value')` at
+// least once with the current value (or null), so this never deadlocks.
+let prefsCollapsedSeen = false;
+let prefsRoomOrderSeen = false;
+function tryMarkPreferencesLoaded() {
+    if (prefsCollapsedSeen && prefsRoomOrderSeen) {
+        markLoaded('userPreferences');
+    }
 }
 
 // Initialize default rooms
@@ -417,21 +547,98 @@ function loadDataFromLocalStorage() {
     }
 }
 
-// Save to Firebase with batching and longer delay
+// =============================================================================
+// FIREBASE WRITE LAYER
+// =============================================================================
+// Every write below is gated by `assertReady`. While dataReady is false the
+// writes silently no-op (with a console warning). This makes the entire
+// race-condition class - clicks during initial fetch - structurally
+// impossible to corrupt Firebase, even if the UI shield were defeated.
+
+function clearUpdatingFlag(delay) {
+    setTimeout(() => { isUpdating = false; }, delay || 300);
+}
+
+function writeAllRooms() {
+    if (!db || !assertReady('writeAllRooms')) return;
+    isUpdating = true;
+    db.ref('rooms').set(rooms)
+        .then(() => clearUpdatingFlag())
+        .catch((err) => { console.error('❌ writeAllRooms:', err); isUpdating = false; });
+}
+
+function writeRoom(roomKey) {
+    if (!db || !assertReady('writeRoom')) return;
+    if (!rooms[roomKey]) return;
+    isUpdating = true;
+    db.ref('rooms/' + roomKey).set(rooms[roomKey])
+        .then(() => clearUpdatingFlag())
+        .catch((err) => { console.error('❌ writeRoom:', err); isUpdating = false; });
+}
+
+function deleteRoomInFirebase(roomKey) {
+    if (!db || !assertReady('deleteRoomInFirebase')) return;
+    isUpdating = true;
+    db.ref('rooms/' + roomKey).remove()
+        .then(() => clearUpdatingFlag())
+        .catch((err) => { console.error('❌ deleteRoomInFirebase:', err); isUpdating = false; });
+}
+
+function writeUser(uid) {
+    if (!db || !assertReady('writeUser')) return;
+    if (!allUsers[uid]) return;
+    db.ref('users/' + uid).set(allUsers[uid])
+        .catch((err) => console.error('❌ writeUser:', err));
+}
+
+function writeCollapsed() {
+    if (!db || !assertReady('writeCollapsed')) return;
+    isUpdating = true;
+    db.ref('userPreferences/' + currentUserId + '/collapsed').set([...collapsedRooms])
+        .then(() => clearUpdatingFlag())
+        .catch((err) => { console.error('❌ writeCollapsed:', err); isUpdating = false; });
+}
+
+function writeAdhoc() {
+    if (!db || !assertReady('writeAdhoc')) return;
+    isUpdating = true;
+    db.ref('adhocCompletions').set(adhocCompletions)
+        .then(() => clearUpdatingFlag())
+        .catch((err) => { console.error('❌ writeAdhoc:', err); isUpdating = false; });
+}
+
+function writeCompetition() {
+    if (!db || !assertReady('writeCompetition')) return;
+    db.ref('competition').set(competitionData)
+        .catch((err) => console.error('❌ writeCompetition:', err));
+}
+
+function writeCompetitionHistory() {
+    if (!db || !assertReady('writeCompetitionHistory')) return;
+    db.ref('competitionHistory').set(competitionHistory)
+        .catch((err) => console.error('❌ writeCompetitionHistory:', err));
+}
+
+// Legacy whole-tree write. Retained for the "save everything after first-run
+// seeding" path; gated by assertReady so it cannot fire pre-load.
 let writeTimeout;
 function saveDataToFirebase() {
     if (!db) return;
-    
+    if (!assertReady('saveDataToFirebase')) return;
+
     console.log('💾 Preparing to save data to Firebase');
-    
-    // Set updating flag to pause listener updates temporarily
     isUpdating = true;
-    
-    // Batch writes
+
     clearTimeout(writeTimeout);
     writeTimeout = setTimeout(() => {
+        // Re-check readiness inside the deferred callback - dataReady can't
+        // regress, but defence in depth.
+        if (!assertReady('saveDataToFirebase:flush')) {
+            isUpdating = false;
+            return;
+        }
         console.log('🚀 Saving data to Firebase...');
-        
+
         const updates = {};
         updates['/rooms'] = rooms;
         updates['/competition'] = competitionData;
@@ -441,14 +648,12 @@ function saveDataToFirebase() {
 
         db.ref().update(updates).then(() => {
             console.log('✅ Data saved successfully');
-            setTimeout(() => {
-                isUpdating = false;
-            }, 300);
+            clearUpdatingFlag();
         }).catch((error) => {
             console.error('❌ Firebase write error:', error);
             isUpdating = false;
         });
-    }, 500); 
+    }, 500);
 }
 
 // Save to localStorage
@@ -474,7 +679,9 @@ function saveData() {
 // Save room order
 function saveRoomOrder() {
     if (db) {
-        db.ref(`userPreferences/${currentUserId}/roomOrder`).set(roomOrder);
+        if (!assertReady('saveRoomOrder')) return;
+        db.ref(`userPreferences/${currentUserId}/roomOrder`).set(roomOrder)
+            .catch((err) => console.error('❌ saveRoomOrder:', err));
     } else {
         localStorage.setItem('cleanquest_roomOrder', JSON.stringify(roomOrder));
     }
@@ -589,19 +796,23 @@ function resetCompetition() {
         };
         
         if (db) {
-            db.ref('competitionHistory').set(competitionHistory);
+            writeCompetitionHistory();
         } else {
             localStorage.setItem('cleanquest_competitionHistory', JSON.stringify(competitionHistory));
         }
     }
-    
+
     // Reset current month
     competitionData = {
         month: currentMonth,
         startDate: now.getTime()
     };
-    
-    saveData();
+
+    if (db) {
+        writeCompetition();
+    } else {
+        saveDataToLocalStorage();
+    }
 }
 
 // Helper: Calculate scores for a specific month/year based on task history
@@ -686,9 +897,9 @@ function toggleCollapseAll() {
         document.getElementById('collapseAllText').textContent = 'Collapse All';
         document.getElementById('collapseAllIcon').textContent = '⚞';
     }
-    
-    saveData();
-    renderRooms(); 
+
+    if (db) writeCollapsed(); else saveDataToLocalStorage();
+    renderRooms();
 }
 
 function updateCollapseAllButton() {
@@ -976,8 +1187,13 @@ function markTaskComplete(roomKey, taskId, timestamp, userId, userName) {
     // We don't rely on allUsers points accumulation anymore for the monthly game
     // but we can still increment it for lifetime tracking if desired
     allUsers[userId].points = (allUsers[userId].points || 0) + 1;
-    
-    saveData();
+
+    if (db) {
+        writeRoom(roomKey);
+        writeUser(userId);
+    } else {
+        saveDataToLocalStorage();
+    }
     forceUIUpdate(); // Update UI immediately
     showCelebration();
     playSound('complete_task_2.mp3');
@@ -1060,8 +1276,8 @@ function unmarkTask(roomKey, taskId) {
         task.lastCompleted = null;
         task.lastCompletedBy = null;
     }
-    
-    saveData();
+
+    if (db) writeRoom(roomKey); else saveDataToLocalStorage();
     forceUIUpdate(); // Update UI immediately
 }
 
@@ -1226,19 +1442,28 @@ function toggleRoom(roomKey) {
     } else {
         collapsedRooms.add(roomKey);
     }
-    
-    saveData();
-    renderRooms(); 
+
+    if (db) writeCollapsed(); else saveDataToLocalStorage();
+    renderRooms();
 }
 
 // Delete room
 function deleteRoom(roomKey) {
     if (!confirm(`Are you sure you want to delete the ${rooms[roomKey].name} room and all its tasks?`)) return;
-    
+
     delete rooms[roomKey];
     collapsedRooms.delete(roomKey);
-    
-    saveData();
+    // Also clean up the user's room order so the deleted key isn't resurrected.
+    const orderIdx = roomOrder.indexOf(roomKey);
+    if (orderIdx !== -1) roomOrder.splice(orderIdx, 1);
+
+    if (db) {
+        deleteRoomInFirebase(roomKey);
+        writeCollapsed();
+        saveRoomOrder();
+    } else {
+        saveDataToLocalStorage();
+    }
     forceUIUpdate();
 }
 
@@ -1587,10 +1812,10 @@ function deleteHistoryEntry(roomKey, taskId, index, skipConfirm) {
         task.lastCompleted = null;
         task.lastCompletedBy = null;
     }
-    
-    saveData();
+
+    if (db) writeRoom(roomKey); else saveDataToLocalStorage();
     forceUIUpdate();
-    
+
     if (!skipConfirm) {
         openHistoryModal(roomKey, taskId);
     }
@@ -1636,20 +1861,31 @@ function setupFormHandlers() {
     // Task form
     document.getElementById('taskForm').addEventListener('submit', (e) => {
         e.preventDefault();
-        
+
+        // Even with the UI shield, if a handler ever
+        // fires before data is loaded, refuse to mutate state.
+        if (db && !dataReady) {
+            console.warn('🛑 taskForm submit ignored - data not loaded');
+            return;
+        }
+
         const roomKey = document.getElementById('editTaskRoom').value;
         const taskId = document.getElementById('editTaskId').value;
         const name = document.getElementById('taskName').value;
         let frequency = document.getElementById('taskFrequency').value;
-        
+
         if (frequency === 'custom') {
             frequency = parseInt(document.getElementById('customDays').value);
         } else {
             frequency = parseInt(frequency);
         }
-        
+
         const room = rooms[roomKey];
-        
+        if (!room) {
+            console.error('Refusing taskForm submit: room not found', roomKey);
+            return;
+        }
+
         if (taskId) {
             // Edit existing task
             const task = room.tasks.find(t => t.id === taskId);
@@ -1669,71 +1905,77 @@ function setupFormHandlers() {
                 history: []
             });
         }
-        
-        saveData();
+
+        if (db) writeRoom(roomKey); else saveDataToLocalStorage();
         forceUIUpdate();
         closeModal('taskModal');
     });
     
-    // Room form (FIXED: Write new room directly to Firebase immediately)
+    // Room form
     document.getElementById('roomForm').addEventListener('submit', (e) => {
         e.preventDefault();
-        
+
+        if (db && !dataReady) {
+            console.warn('🛑 roomForm submit ignored - data not loaded');
+            return;
+        }
+
         const name = document.getElementById('roomName').value;
         const icon = document.getElementById('selectedEmoji').value;
         const roomKey = 'room_' + Date.now();
-        
+
         console.log('➕ Adding new room:', name);
-        
+
         rooms[roomKey] = {
             name: name,
             icon: icon,
             tasks: []
         };
 
-        // Immediately write new room directly to Firebase (bypasses 500ms batch delay)
-        if (db) {
-            db.ref(`rooms/${roomKey}`).set(rooms[roomKey])
-                .then(() => console.log('✅ New room saved to Firebase'))
-                .catch(err => console.error('❌ Failed to save room:', err));
-        }
-
-        // FIX: Add to order and save order separately
         if (!roomOrder.includes(roomKey)) {
             roomOrder.push(roomKey);
-            saveRoomOrder();
         }
-        
-        saveData();
+
+        if (db) {
+            writeRoom(roomKey);
+            saveRoomOrder();
+        } else {
+            saveDataToLocalStorage();
+        }
+
         forceUIUpdate();
         closeModal('roomModal');
     });
     
-    // User name form
+    // User name form. v1 also called saveData() here, which on a fresh load
+    // wrote the still-empty `rooms`, `users`, `competition`, and
+    // `adhocCompletions` over Firebase - the actual data-loss vector. v2
+    // writes only the user's record, gated on dataReady.
     document.getElementById('userNameForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
+        if (db && !dataReady) {
+            console.warn('🛑 userNameForm submit ignored - data not loaded');
+            return;
+        }
+
         currentUserName = document.getElementById('userNameInput').value.trim();
         console.log('💾 Saving user name:', currentUserName);
-        
+
         if (!allUsers[currentUserId]) {
             allUsers[currentUserId] = { name: currentUserName, points: 0 };
         } else {
             allUsers[currentUserId].name = currentUserName;
         }
-        
-        if (db && currentUserId) {
-            try {
-                await db.ref(`users/${currentUserId}/name`).set(currentUserName);
-                console.log('✅ User name saved to Firebase');
-            } catch (error) {
-                console.error('❌ Error saving user name:', error);
-            }
-        }
-        
+
         localStorage.setItem('cleanquest_userName', currentUserName);
-        
-        saveData();
+
+        if (db && currentUserId) {
+            writeUser(currentUserId);
+        } else {
+            saveDataToLocalStorage();
+        }
+
         updateUserNameDisplay();
         closeModal('userNameModal');
     });
@@ -1742,6 +1984,10 @@ function setupFormHandlers() {
 
     document.getElementById('adhocTaskForm').addEventListener('submit', (e) => {
         e.preventDefault();
+        if (db && !dataReady) {
+            console.warn('🛑 adhocTaskForm submit ignored - data not loaded');
+            return;
+        }
         const taskName = document.getElementById('adhocTaskName').value.trim();
         if (!taskName) return;
         const dateStr = document.getElementById('adhocDate').value;
@@ -1760,7 +2006,12 @@ function setupFormHandlers() {
         adhocCompletions.push(entry);
         if (!allUsers[selectedUserId]) allUsers[selectedUserId] = { name: selectedUserName, points: 0 };
         allUsers[selectedUserId].points = (allUsers[selectedUserId].points || 0) + 1;
-        saveData();
+        if (db) {
+            writeAdhoc();
+            writeUser(selectedUserId);
+        } else {
+            saveDataToLocalStorage();
+        }
         forceUIUpdate();
         showCelebration();
         playSound('complete_task_2.mp3');
@@ -1771,11 +2022,12 @@ function setupFormHandlers() {
 // Delete task
 function deleteTask(roomKey, taskId) {
     if (!confirm('Are you sure you want to delete this task?')) return;
-    
+
     const room = rooms[roomKey];
+    if (!room) return;
     room.tasks = room.tasks.filter(t => t.id !== taskId);
-    
-    saveData();
+
+    if (db) writeRoom(roomKey); else saveDataToLocalStorage();
     forceUIUpdate();
 }
 
