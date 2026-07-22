@@ -532,6 +532,60 @@
             animation: fadeInOverlay 0.3s ease;
         }
 
+        /* v2.0 race-condition guard: while data has not finished loading from
+           Firebase, the underlying UI is visually dimmed and cannot receive
+           clicks. This prevents users from triggering writes against
+           uninitialised local state. */
+        body.app-loading header,
+        body.app-loading .main-container {
+            pointer-events: none;
+            opacity: 0.35;
+            filter: blur(1px);
+            user-select: none;
+        }
+
+        .app-loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9998;
+            background: rgba(20, 25, 40, 0.55);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+        }
+
+        body.app-loading .app-loading-overlay {
+            display: flex;
+        }
+
+        .app-loading-card {
+            background: white;
+            border-radius: var(--radius);
+            padding: 28px 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+            font-family: 'Google Sans', sans-serif;
+            color: var(--text-color, #222);
+        }
+
+        .app-loading-spinner {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-top-color: var(--accent-blue, #4285f4);
+            animation: spin 0.9s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         @keyframes fadeInOverlay {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -962,7 +1016,17 @@
         }
     </style>
 </head>
-<body>
+<body class="app-loading">
+    <!-- Full-screen loading shield: The app starts with the
+         `app-loading` class on <body>; it is removed only after every
+         critical Firebase path has reported its first snapshot. This failsafe keeps underlying UI is non-interactive. -->
+    <div class="app-loading-overlay" id="appLoadingOverlay">
+        <div class="app-loading-card">
+            <div class="app-loading-spinner" aria-hidden="true"></div>
+            <div>Questing clean rooms...</div>
+        </div>
+    </div>
+
     <header>
         <div class="header-content">
             <div class="header-left">
@@ -1280,6 +1344,31 @@
                 <button class="close-btn" onclick="closeModal('userHistoryModal')">×</button>
             </div>
             <div class="history-list" id="userHistoryList"></div>
+        </div>
+    </div>
+
+    <!-- v2.0: shown when /rooms is missing in Firebase for an existing
+         account. Replaces the previous silent "auto-seed defaults" behaviour
+         that destroyed real data when an empty write reached Firebase. -->
+    <div class="modal-overlay" id="recoveryModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span>⚠️ Rooms not found</span>
+            </div>
+            <div style="margin-bottom: 16px; line-height: 1.5;">
+                Your CleanQuest data could not be loaded — there are no rooms
+                stored in the cloud for this account. This is unusual for an
+                existing user. To avoid overwriting a backup you might still
+                have, nothing has been changed.
+                <br><br>
+                If this is a brand-new household, you can start with the
+                default rooms. Otherwise, cancel and contact whoever set up
+                the account to restore from backup.
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('recoveryModal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmSeedDefaults()">Start with defaults</button>
+            </div>
         </div>
     </div>
 

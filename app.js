@@ -118,9 +118,14 @@ let listenersActive = false; // Track if listeners are set up
 let notificationsSent = false; // Track if notifications have been sent this session
 
 // =============================================================================
-// [IMPORTANT] RACE-CONDITION GUARD
+// v2.0 RACE-CONDITION GUARD
 // =============================================================================
-//   1. Loading screen: <body> carries `app-loading` until every critical path has
+// In v1, the app's button handlers were live the moment the DOM was ready,
+// but Firebase listeners were async. A user clicking quickly could trigger a
+// write of the (still-empty) local state, which Firebase interpreted as a
+// deletion of the real data — and the rooms listener then re-seeded defaults
+// on top. v2 closes that window with three layered defences:
+//   1. UI shield: <body> carries `app-loading` until every critical path has
 //      reported its first snapshot. Buttons can't be clicked.
 //   2. Write guard: every Firebase write goes through `assertReady`, which
 //      refuses to fire until `dataReady` is true.
@@ -152,7 +157,7 @@ function markLoaded(key) {
     initialLoadStatus[key] = true;
     if (!dataReady && Object.values(initialLoadStatus).every(Boolean)) {
         dataReady = true;
-        console.log('✅ All initial data loaded - UI unlocked');
+        console.log('✅ All initial data loaded — UI unlocked');
         document.body.classList.remove('app-loading');
         // Drain any deferred post-load work *before* updating the UI so the
         // UI reflects the seeded state.
@@ -181,7 +186,7 @@ function showRecoveryModal() {
 }
 
 // Triggered by the "Start with defaults" button in the recovery modal. This
-// is the ONLY user-driven path that seeds defaults for an existing account -
+// is the ONLY user-driven path that seeds defaults for an existing account —
 // the listener no longer does it silently.
 function confirmSeedDefaults() {
     closeModal('recoveryModal');
@@ -198,7 +203,7 @@ function playSound(filename) {
 
 // Initialize app
 function init() {
-    // Lock the UI until data has loaded. setupFormHandlers() below will
+    // v2.0: lock the UI until data has loaded. setupFormHandlers() below will
     // wire up listeners that read state, but pointer-events:none on the
     // underlying DOM (set by the .app-loading body class) prevents any user
     // input from reaching them.
@@ -281,7 +286,7 @@ function loadUserProfile() {
             console.log('✅ Existing user loaded:', currentUserName);
         } else {
             firstRunSeed = true;
-            console.log('🌱 New account - defaults will be seeded once');
+            console.log('🌱 New account — defaults will be seeded once');
         }
         updateUserNameDisplay();
         setupFirebaseListeners();
@@ -302,8 +307,8 @@ function loadUserProfile() {
 
 // Setup Firebase listeners with debouncing.
 //
-// Every critical listener calls markLoaded(...) on its first snapshot.
-// dataReady - and therefore the ability of any handler to write - is gated
+// v2.0: every critical listener calls markLoaded(...) on its first snapshot.
+// dataReady — and therefore the ability of any handler to write — is gated
 // on every flag in initialLoadStatus flipping to true.
 function setupFirebaseListeners() {
     if (listenersActive) {
@@ -327,17 +332,17 @@ function setupFirebaseListeners() {
                 normalizeRoomsData(rooms);
                 console.log('✅ Rooms loaded:', Object.keys(rooms).length);
             } else if (roomsFirstSnapshot && firstRunSeed) {
-                // True first run for a brand-new account - safe to seed.
+                // True first run for a brand-new account — safe to seed.
                 console.log('🌱 First run: seeding default rooms');
                 initializeDefaultRooms();
                 // Queue the write for after every listener has reported, so
                 // dataReady is true and assertReady passes.
                 whenReady(() => writeAllRooms());
             } else if (roomsFirstSnapshot) {
-                // Returning user with no rooms - DO NOT auto-seed. Surface a
+                // Returning user with no rooms — DO NOT auto-seed. Surface a
                 // recovery prompt instead. This is the path that previously
                 // destroyed user data.
-                console.warn('⚠️ Existing user but /rooms is missing - recovery mode');
+                console.warn('⚠️ Existing user but /rooms is missing — recovery mode');
                 rooms = {};
                 recoveryNeeded = true;
             } else {
@@ -548,11 +553,11 @@ function loadDataFromLocalStorage() {
 }
 
 // =============================================================================
-// FIREBASE WRITE LAYER
+// FIREBASE WRITE LAYER (v2.0)
 // =============================================================================
 // Every write below is gated by `assertReady`. While dataReady is false the
 // writes silently no-op (with a console warning). This makes the entire
-// race-condition class - clicks during initial fetch - structurally
+// race-condition class — clicks during initial fetch — structurally
 // impossible to corrupt Firebase, even if the UI shield were defeated.
 
 function clearUpdatingFlag(delay) {
@@ -631,7 +636,7 @@ function saveDataToFirebase() {
 
     clearTimeout(writeTimeout);
     writeTimeout = setTimeout(() => {
-        // Re-check readiness inside the deferred callback - dataReady can't
+        // Re-check readiness inside the deferred callback — dataReady can't
         // regress, but defence in depth.
         if (!assertReady('saveDataToFirebase:flush')) {
             isUpdating = false;
@@ -1862,10 +1867,10 @@ function setupFormHandlers() {
     document.getElementById('taskForm').addEventListener('submit', (e) => {
         e.preventDefault();
 
-        // Even with the UI shield, if a handler ever
-        // fires before data is loaded, refuse to mutate state.
+        // v2.0 defence in depth: even with the UI shield, if a handler ever
+        // fires before data is loaded we refuse to mutate state.
         if (db && !dataReady) {
-            console.warn('🛑 taskForm submit ignored - data not loaded');
+            console.warn('🛑 taskForm submit ignored — data not loaded');
             return;
         }
 
@@ -1916,7 +1921,7 @@ function setupFormHandlers() {
         e.preventDefault();
 
         if (db && !dataReady) {
-            console.warn('🛑 roomForm submit ignored - data not loaded');
+            console.warn('🛑 roomForm submit ignored — data not loaded');
             return;
         }
 
@@ -1949,13 +1954,13 @@ function setupFormHandlers() {
     
     // User name form. v1 also called saveData() here, which on a fresh load
     // wrote the still-empty `rooms`, `users`, `competition`, and
-    // `adhocCompletions` over Firebase - the actual data-loss vector. v2
+    // `adhocCompletions` over Firebase — the actual data-loss vector. v2
     // writes only the user's record, gated on dataReady.
     document.getElementById('userNameForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
         if (db && !dataReady) {
-            console.warn('🛑 userNameForm submit ignored - data not loaded');
+            console.warn('🛑 userNameForm submit ignored — data not loaded');
             return;
         }
 
@@ -1985,7 +1990,7 @@ function setupFormHandlers() {
     document.getElementById('adhocTaskForm').addEventListener('submit', (e) => {
         e.preventDefault();
         if (db && !dataReady) {
-            console.warn('🛑 adhocTaskForm submit ignored - data not loaded');
+            console.warn('🛑 adhocTaskForm submit ignored — data not loaded');
             return;
         }
         const taskName = document.getElementById('adhocTaskName').value.trim();
